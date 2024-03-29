@@ -1,0 +1,9 @@
+stages:
+  Download:
+    cmd: python src/download.py
+    params:
+    - n_locs
+    - seed
+    - year
+    outs:
+    - data/csv

@@ -1,0 +1,15 @@
+schema: '2.0'
+stages:
+  Download:
+    cmd: python src/download.py
+    params:
+      params.yaml:
+        n_locs: 10
+        seed: 40
+        year: 2007
+    outs:
+    - path: data/csv
+      hash: md5
+      md5: 2efbb9bd78a3a514265efaa3aed64b0e.dir
+      size: 52555436
+      nfiles: 10

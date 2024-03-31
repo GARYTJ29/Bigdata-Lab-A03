@@ -1,52 +1,8 @@
 import os
-import random
-import re
-import sys
-import xml.etree.ElementTree
-
+import pandas as pd
 import yaml
 
-
-def process_posts(input_lines, fd_out_train, fd_out_test, target_tag, split):
-    """
-    Process the input lines and write the output to the output files.
-
-    Args:
-        input_lines (list): List of input lines.
-        fd_out_train (file): Output file for the training data set.
-        fd_out_test (file): Output file for the test data set.
-        target_tag (str): Target tag.
-        split (float): Test data set split ratio.
-    """
-    num = 1
-    for line in input_lines:
-        try:
-            fd_out = fd_out_train if random.random() > split else fd_out_test
-            attr = xml.etree.ElementTree.fromstring(line).attrib
-
-            pid = attr.get("Id", "")
-            label = 1 if target_tag in attr.get("Tags", "") else 0
-            title = re.sub(r"\s+", " ", attr.get("Title", "")).strip()
-            body = re.sub(r"\s+", " ", attr.get("Body", "")).strip()
-            text = title + " " + body
-
-            fd_out.write("{}\t{}\t{}\n".format(pid, label, text))
-
-            num += 1
-        except Exception as ex:
-            sys.stderr.write(f"Skipping the broken line {num}: {ex}\n")
-
-
-import os
-import pandas as pd
-from datetime import datetime
-
-def extract_monthly_aggregates(csv_folder, output_file):
-    # Check if the output file already exists
-    if os.path.exists(output_file):
-        print("Ground truth file already exists.")
-        return
-
+def extract_monthly_aggregates(csv_folder):
     # Create an empty DataFrame to store aggregated data
     aggregated_data = pd.DataFrame()
 
@@ -58,63 +14,48 @@ def extract_monthly_aggregates(csv_folder, output_file):
             # Read CSV file
             df = pd.read_csv(file_path)
 
-            # Extract month and year from the date column
+            # Extract month and year from the DATE column
             df['DATE'] = pd.to_datetime(df['DATE'])
             df['MONTH_YEAR'] = df['DATE'].dt.strftime('%m-%Y')
 
-            # Group by station and month_year, compute average of hourly values
-            monthly_aggregates = df.groupby(['STATION', 'MONTH_YEAR']).mean()
+            # Group by station and month_year, compute mean of monthly columns
+            monthly_aggregates = df.groupby(['STATION', 'MONTH_YEAR']).mean(numeric_only=True)
 
             # Append to aggregated data
-            aggregated_data = aggregated_data.append(monthly_aggregates)
+            aggregated_data = pd.concat([aggregated_data,monthly_aggregates])
 
-    # Save the aggregated data to a CSV file
-    aggregated_data.to_csv(output_file)
-    print("Ground truth file saved successfully.")
+    return aggregated_data
 
-# Example usage:
-csv_folder = '/path/to/csv/files'  # Specify the folder containing CSV files
-output_file = 'ground_truth.csv'    # Specify the output file name
-extract_monthly_aggregates(csv_folder, output_file)
+def check_monthly_columns(data):
+    # Get the monthly column names
+    monthly_columns = [col for col in data.columns if 'Monthly' in col]
 
+    # Check if any of the monthly columns contain non-empty values (including zero)
+    non_empty_columns = [col for col in monthly_columns if data[col].notna().any()]
 
-
-def main():
-    params = yaml.safe_load(open("params.yaml"))["prepare"]
-
-    if len(sys.argv) != 2:
-        sys.stderr.write("Arguments error. Usage:\n")
-        sys.stderr.write("\tpython prepare.py data-file\n")
-        sys.exit(1)
-
-    # Test data set split ratio
-    split = params["split"]
-    random.seed(params["seed"])
-
-    input = sys.argv[1]
-    output_train = os.path.join("data", "prepared", "train.tsv")
-    output_test = os.path.join("data", "prepared", "test.tsv")
-
-    os.makedirs(os.path.join("data", "prepared"), exist_ok=True)
-
-    input_lines = []
-    with open(input) as fd_in:
-        input_lines = fd_in.readlines()
-
-    fd_out_train = open(output_train, "w", encoding="utf-8")
-    fd_out_test = open(output_test, "w", encoding="utf-8")
-
-    process_posts(
-        input_lines=input_lines,
-        fd_out_train=fd_out_train,
-        fd_out_test=fd_out_test,
-        target_tag="<r>",
-        split=split,
-    )
-
-    fd_out_train.close()
-    fd_out_test.close()
-
+    return non_empty_columns
 
 if __name__ == "__main__":
-    main()
+    # Set default values for n_locs and year
+    year = 2007
+
+    # Specify the folder containing CSV files
+    with open('params.yaml', 'r') as params_file:
+        params = yaml.safe_load(params_file)
+    csv_folder = f"data/csv/{params.get('year',year)}/"
+
+    # Step 1: Extract monthly aggregates
+    aggregated_data = extract_monthly_aggregates(csv_folder)
+
+    # Step 2: Save the aggregated data to a CSV file
+    output_file = 'data/prepared/ground_truth.csv'
+    output_folder='data/prepared'
+    os.makedirs(output_folder, exist_ok=True)
+    aggregated_data.to_csv(output_file)
+
+    # Step 3: Check for non-empty monthly columns
+    non_empty_columns = check_monthly_columns(aggregated_data)
+
+    # Step 4: Save the array of non-empty monthly column names to a file
+    with open('data/prepared/non_empty_monthly_columns.txt', 'w') as file:
+        file.write('\n'.join(non_empty_columns))

@@ -4,12 +4,33 @@ stages:
     cmd: python src/download.py
     params:
       params.yaml:
-        n_locs: 10
-        seed: 40
-        year: 2007
+        n_locs: 100
+        seed: 20
+        year: 2010
     outs:
     - path: data/csv
       hash: md5
-      md5: 2efbb9bd78a3a514265efaa3aed64b0e.dir
-      size: 52555436
-      nfiles: 10
+      md5: f40c238b52b00d1484690e622a087025.dir
+      size: 419559958
+      nfiles: 100
+  Prepare:
+    cmd: python src/prepare.py
+    deps:
+    - path: data/csv
+      hash: md5
+      md5: f40c238b52b00d1484690e622a087025.dir
+      size: 419559958
+      nfiles: 100
+    - path: src/download.py
+      hash: md5
+      md5: d72df7d0e09c1e6505f44cb02ed41c77
+      size: 2567
+    params:
+      params.yaml:
+        year: 2010
+    outs:
+    - path: data/prepared
+      hash: md5
+      md5: 8f47ad9f97419dda4beddc8e105f8cbc.dir
+      size: 362570
+      nfiles: 2

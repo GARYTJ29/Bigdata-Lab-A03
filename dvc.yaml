@@ -7,3 +7,12 @@ stages:
     - year
     outs:
     - data/csv
+  Prepare:
+    cmd: python src/prepare.py
+    deps:
+    - data/csv
+    - src/download.py
+    params:
+    - year
+    outs:
+    - data/prepared

@@ -1,112 +1,39 @@
 import json
-import math
-import os
-import pickle
-import sys
-
-import pandas as pd
-from sklearn import metrics
-from sklearn import tree
 from dvclive import Live
-from matplotlib import pyplot as plt
+import pandas as pd
+from sklearn.metrics import r2_score
+import os
 
+# Load processed and ground truth CSV files
+processed_data = pd.read_csv('data/processed/aggregated_monthly_data.csv')
+ground_truth_data = pd.read_csv('data/prepared/ground_truth.csv')
 
-def evaluate(model, matrix, split, live, save_path):
-    """
-    Dump all evaluation metrics and plots for given datasets.
+# Extract columns containing "Monthly" from both DataFrames
+processed_columns = [col for col in processed_data.columns if 'Monthly' in col]
+ground_truth_columns = [col for col in ground_truth_data.columns if 'Monthly' in col]
 
-    Args:
-        model (sklearn.ensemble.RandomForestClassifier): Trained classifier.
-        matrix (scipy.sparse.csr_matrix): Input matrix.
-        split (str): Dataset name.
-        live (dvclive.Live): Dvclive instance.
-        save_path (str): Path to save the metrics.
-    """
-    labels = matrix[:, 1].toarray().astype(int)
-    x = matrix[:, 2:]
+# Initialize a dictionary to store R2 scores
+r2_scores = {}
 
-    predictions_by_class = model.predict_proba(x)
-    predictions = predictions_by_class[:, 1]
+# Initialize dvclive
+with Live() as live:
+    # Calculate R2 score for each column and log metrics
+    for col in processed_columns:
+        if col in ground_truth_columns:
+            processed_values = processed_data[col]
+            ground_truth_values = ground_truth_data[col]
+            # Filter out NaN values
+            notnan_values = ~processed_values.isnull() & ~ground_truth_values.isnull()
+            if notnan_values.any():
+                r2 = r2_score(ground_truth_values[notnan_values], processed_values[notnan_values])
+                live.log_metric(col, r2)
+                # Store R2 score in the dictionary
+                r2_scores[col] = r2
 
-    # Use dvclive to log a few simple metrics...
-    avg_prec = metrics.average_precision_score(labels, predictions)
-    roc_auc = metrics.roc_auc_score(labels, predictions)
-    if not live.summary:
-        live.summary = {"avg_prec": {}, "roc_auc": {}}
-    live.summary["avg_prec"][split] = avg_prec
-    live.summary["roc_auc"][split] = roc_auc
+# Save R2 scores to a JSON file
+output_folder='data/eval'
+os.makedirs(output_folder, exist_ok=True)
+output_file = 'data/eval/r2_scores.json'
+with open(output_file, 'w') as f:
+    json.dump(r2_scores, f)
 
-    # ... and plots...
-    # ... like an roc plot...
-    live.log_sklearn_plot("roc", labels, predictions, name=f"roc/{split}")
-    # ... and precision recall plot...
-    # ... which passes `drop_intermediate=True` to the sklearn method...
-    live.log_sklearn_plot(
-        "precision_recall",
-        labels,
-        predictions,
-        name=f"prc/{split}",
-        drop_intermediate=True,
-    )
-    # ... and confusion matrix plot
-    live.log_sklearn_plot(
-        "confusion_matrix",
-        labels.squeeze(),
-        predictions_by_class.argmax(-1),
-        name=f"cm/{split}",
-    )
-
-
-def save_importance_plot(live, model, feature_names):
-    """
-    Save feature importance plot.
-
-    Args:
-        live (dvclive.Live): DVCLive instance.
-        model (sklearn.ensemble.RandomForestClassifier): Trained classifier.
-        feature_names (list): List of feature names.
-    """
-    fig, axes = plt.subplots(dpi=100)
-    fig.subplots_adjust(bottom=0.2, top=0.95)
-    axes.set_ylabel("Mean decrease in impurity")
-
-    importances = model.feature_importances_
-    forest_importances = pd.Series(importances, index=feature_names).nlargest(n=30)
-    forest_importances.plot.bar(ax=axes)
-
-    live.log_image("importance.png", fig)
-
-
-def main():
-    EVAL_PATH = "eval"
-
-    if len(sys.argv) != 3:
-        sys.stderr.write("Arguments error. Usage:\n")
-        sys.stderr.write("\tpython evaluate.py model features\n")
-        sys.exit(1)
-
-    model_file = sys.argv[1]
-    train_file = os.path.join(sys.argv[2], "train.pkl")
-    test_file = os.path.join(sys.argv[2], "test.pkl")
-
-    # Load model and data.
-    with open(model_file, "rb") as fd:
-        model = pickle.load(fd)
-
-    with open(train_file, "rb") as fd:
-        train, feature_names = pickle.load(fd)
-
-    with open(test_file, "rb") as fd:
-        test, _ = pickle.load(fd)
-
-    # Evaluate train and test datasets.
-    with Live(EVAL_PATH, dvcyaml=False) as live:
-        evaluate(model, train, "train", live, save_path=EVAL_PATH)
-        evaluate(model, test, "test", live, save_path=EVAL_PATH)
-
-        # Dump feature importance plot.
-        save_importance_plot(live, model, feature_names)
-
-
-if __name__ == "__main__":
-    main()

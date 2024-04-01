@@ -1,6 +1,8 @@
 stages:
   Download:
     cmd: python src/download.py
+    deps:
+    - src/download.py
     params:
     - n_locs
     - seed
@@ -11,8 +13,27 @@ stages:
     cmd: python src/prepare.py
     deps:
     - data/csv
-    - src/download.py
+    - src/prepare.py
     params:
     - year
     outs:
     - data/prepared
+  Process:
+    cmd: python src/process.py
+    deps:
+    - data/csv
+    - data/prepared
+    - src/process.py
+    outs:
+    - data/processed
+  Evaluate:
+    cmd: python src/evaluate.py
+    deps:
+    - data/prepared
+    - data/processed
+    - src/evaluate.py
+metrics:
+- dvclive/metrics.json
+plots:
+- dvclive/plots/metrics:
+    x: step

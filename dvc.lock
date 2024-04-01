@@ -2,6 +2,11 @@ schema: '2.0'
 stages:
   Download:
     cmd: python src/download.py
+    deps:
+    - path: src/download.py
+      hash: md5
+      md5: d72df7d0e09c1e6505f44cb02ed41c77
+      size: 2567
     params:
       params.yaml:
         n_locs: 100
@@ -21,10 +26,10 @@ stages:
       md5: f40c238b52b00d1484690e622a087025.dir
       size: 419559958
       nfiles: 100
-    - path: src/download.py
+    - path: src/prepare.py
       hash: md5
-      md5: d72df7d0e09c1e6505f44cb02ed41c77
-      size: 2567
+      md5: 1ca6cc088e00489abd613c9ae9427639
+      size: 2205
     params:
       params.yaml:
         year: 2010
@@ -34,3 +39,43 @@ stages:
       md5: 8f47ad9f97419dda4beddc8e105f8cbc.dir
       size: 362570
       nfiles: 2
+  Process:
+    cmd: python src/process.py
+    deps:
+    - path: data/csv
+      hash: md5
+      md5: f40c238b52b00d1484690e622a087025.dir
+      size: 419559958
+      nfiles: 100
+    - path: data/prepared
+      hash: md5
+      md5: 8f47ad9f97419dda4beddc8e105f8cbc.dir
+      size: 362570
+      nfiles: 2
+    - path: src/process.py
+      hash: md5
+      md5: 2830b5252be5542475eeb65f85778481
+      size: 6337
+    outs:
+    - path: data/processed
+      hash: md5
+      md5: 85adddd8e9830fe2a0688825d3f8dc24.dir
+      size: 365694
+      nfiles: 1
+  Evaluate:
+    cmd: python src/evaluate.py
+    deps:
+    - path: data/prepared
+      hash: md5
+      md5: 8f47ad9f97419dda4beddc8e105f8cbc.dir
+      size: 362570
+      nfiles: 2
+    - path: data/processed
+      hash: md5
+      md5: 85adddd8e9830fe2a0688825d3f8dc24.dir
+      size: 365694
+      nfiles: 1
+    - path: src/evaluate.py
+      hash: md5
+      md5: 9d26ea691ef5d06e60216f72d45eae3f
+      size: 1451
